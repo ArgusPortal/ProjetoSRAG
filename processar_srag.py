@@ -93,10 +93,43 @@ def carregar_dados(caminho_arquivo, encoding='latin1', sep=';', chunksize=None):
     print(f"Dados carregados com sucesso! Total de registros: {len(df)}")
     return df
 
+# Função para remover colunas com valores nulos
+def remover_colunas_nulas(df, threshold=1.0):
+    """
+    Remove colunas que possuem percentual de valores nulos acima do threshold.
+    
+    Parâmetros:
+        df (pandas.DataFrame): DataFrame a ser processado
+        threshold (float): Valor entre 0 e 1 que define o percentual mínimo de valores nulos
+                          para remover a coluna. Default 1.0 (100% nulos)
+    
+    Retorna:
+        pandas.DataFrame: DataFrame sem as colunas removidas
+    """
+    # Calcular percentual de valores nulos em cada coluna
+    percentual_nulos = df.isnull().mean()
+    
+    # Identificar colunas a serem removidas (acima do threshold)
+    colunas_remover = percentual_nulos[percentual_nulos >= threshold].index.tolist()
+    
+    if colunas_remover:
+        print(f"Removendo {len(colunas_remover)} colunas com {threshold*100}% ou mais de valores nulos:")
+        print(f"  {', '.join(colunas_remover[:10])}" + ("..." if len(colunas_remover) > 10 else ""))
+        return df.drop(columns=colunas_remover)
+    else:
+        print(f"Nenhuma coluna com {threshold*100}% ou mais de valores nulos encontrada.")
+        return df
+
 # Função para limpar os dados (remoção de duplicatas e padronização de textos)
 def limpar_dados(df):
     df_limpo = df.drop_duplicates()
     print(f"Duplicatas removidas: {len(df) - len(df_limpo)}")
+    
+    # Remover colunas completamente nulas
+    colunas_antes = len(df_limpo.columns)
+    df_limpo = remover_colunas_nulas(df_limpo)
+    print(f"Colunas removidas por conterem apenas valores nulos: {colunas_antes - len(df_limpo.columns)}")
+    
     # Converter todas as colunas de texto para maiúsculas e sem espaços
     for col in df_limpo.select_dtypes(include=['object']).columns:
         try:
@@ -121,7 +154,7 @@ def standardize_column_names(df):
 
 # Função para aplicar mapeamentos categóricos conforme o dicionário de dados
 def aplicar_categorias_completo(df):
-    # Dicionário de mapeamento – estenda conforme necessário
+    # Dicionário de mapeamento completo com base no dicionário SIVEP-Gripe (19/09/2022)
     categorias = {
         # Dados de Identificação e Notificação
         "NU_NOTIFIC": {},   # Número do registro (numérico/alfanumérico – não mapeamos)
@@ -146,7 +179,7 @@ def aplicar_categorias_completo(df):
         "CS_RACA": {'1': "Branca", '2': "Preta", '3': "Amarela", '4': "Parda", '5': "Indígena", '9': "Ignorado"},
         "CS_ETINIA": {},
         "POV_CT": {'1': "Sim", '2': "Não"},
-        "TP_POV_CT": {},
+        "TP_POV_CT": {},  # Tabela de povos e comunidades tradicionais - será mapeado separadamente se disponível
         "CS_ESCOL_N": {'0': "Sem escolaridade/Analfabeto",
                        '1': "Fundamental 1º ciclo (1ª a 5ª série)",
                        '2': "Fundamental 2º ciclo (6ª a 9ª série)",
@@ -204,23 +237,49 @@ def aplicar_categorias_completo(df):
         "RENAL": {'1': "Sim", '2': "Não", '9': "Ignorado"},
         "OBESIDADE": {'1': "Sim", '2': "Não", '9': "Ignorado"},
         "OBES_IMC": {},
+        "OUT_MORBI": {'1': "Sim", '2': "Não", '9': "Ignorado"},  # Outros fatores de risco
+        "MORB_DESC": {},  # Descrição de outros fatores de risco
 
-        # Vacinação e tratamento (COVID-19 e gripe)
+        # Vacinação contra COVID-19
         "VACINA_COV": {'1': "Sim", '2': "Não", '9': "Ignorado"},
-        "DOSE_1_COV": {},
-        "DOSE_2_COV": {},
-        "DOSE_REF": {},
-        "FAB_COV1": {},
-        "FAB_COV2": {},
-        "FAB_COVRF": {},
-        "FAB_COVRF2": {},
+        "DOSE_1_COV": {},  # Data da 1ª dose (será convertida)
+        "DOSE_2_COV": {},  # Data da 2ª dose (será convertida)
+        "DOSE_REF": {},    # Data da dose de reforço (será convertida)
+        "DOSE_2REF": {},   # Data da 2ª dose de reforço
+        "FAB_COV1": {},    # Fabricante da 1ª dose
+        "FAB_COV2": {},    # Fabricante da 2ª dose
+        "FAB_COVRF": {},   # Fabricante da dose de reforço
+        "FAB_COVRF2": {},  # Fabricante da 2ª dose de reforço
+        "LOTE_1_COV": {},  # Lote da 1ª dose
+        "LOTE_2_COV": {},  # Lote da 2ª dose
+        "LOTE_REF": {},    # Lote da dose de reforço
+        "LOTE_REF2": {},   # Lote da 2ª dose de reforço
+        "FNT_IN_COV": {'1': "Manual", '2': "Integração"},  # Fonte dos dados de vacinação
+
+        # Vacinação contra Gripe
+        "VACINA": {'1': "Sim", '2': "Não", '9': "Ignorado"},  # Recebeu vacina contra gripe
+        "DT_UT_DOSE": {},  # Data da última dose
+        "MAE_VAC": {'1': "Sim", '2': "Não", '9': "Ignorado"},  # Mãe vacinada (para < 6 meses)
+        "DT_VAC_MAE": {},  # Data da vacinação da mãe
+        "M_AMAMENTA": {'1': "Sim", '2': "Não", '9': "Ignorado"},  # Mãe amamenta (para < 6 meses)
+        "DT_DOSEUNI": {},  # Data dose única (6m-8a)
+        "DT_1_DOSE": {},   # Data 1ª dose (6m-8a)
+        "DT_2_DOSE": {},   # Data 2ª dose (6m-8a)
+
+        # Tratamento - Antiviral e outros
         "ANTIVIRAL": {'1': "Sim", '2': "Não", '9': "Ignorado"},
         "TP_ANTIVIR": {'1': "Oseltamivir", '2': "Zanamivir", '3': "Outro"},
-        "TRAT_COV": {'1': "Sim", '2': "Não", '9': "Ignorado"},
+        "OUT_ANTIV": {},   # Outro antiviral (descrição)
+        "DT_ANTIVIR": {},  # Data início do tratamento com antiviral
+        
+        # Tratamento COVID-19
+        "TRAT_COV": {'1': "Sim", '2': "Não", '9': "Ignorado"},  # Recebeu tratamento para COVID-19
         "TIPO_TRAT": {'1': "Nirmatrevir/ritonavir (Paxlovid)",
                       '2': "Molnupiravir (Lagevrio)",
                       '3': "Baricitinibe (Olumiant)",
                       '4': "Outro, especifique"},
+        "OUT_TRAT": {},    # Outro tratamento COVID-19 (descrição)
+        "DT_TRT_COV": {},  # Data início do tratamento COVID-19
         
         # Internação, UTI e exames radiológicos
         "HOSPITAL": {'1': "Sim", '2': "Não", '9': "Ignorado"},
@@ -243,7 +302,7 @@ def aplicar_categorias_completo(df):
         "TOMO_OUT": {},
         "DT_TOMO": {},
         
-        # Teste Diagnóstico – Amostra, Teste Antigênico, RT-PCR e Sorologia
+        # Teste Diagnóstico – Amostras e Coleta
         "AMOSTRA": {'1': "Sim", '2': "Não", '9': "Ignorado"},
         "DT_COLETA": {},
         "TP_AMOSTRA": {'1': "Secreção de Nasoorofaringe",
@@ -254,44 +313,130 @@ def aplicar_categorias_completo(df):
                        '9': "Ignorado"},
         "OUT_AMOST": {},
         "REQUI_GAL": {},
+        
+        # Teste Antigênico
         "TP_TES_AN": {'1': "Imunofluorescência (IF)", '2': "Teste rápido antigênico"},
         "DT_RES_AN": {},
-        "RES_AN": {'1': "Positivo", '2': "Negativo", '3': "Inconclusivo", '4': "Não realizado", '5': "Aguardando resultado", '9': "Ignorado"},
+        "RES_AN": {'1': "Positivo", '2': "Negativo", '3': "Inconclusivo", 
+                  '4': "Não realizado", '5': "Aguardando resultado", '9': "Ignorado"},
         "LAB_AN": {},
         "CO_LAB_AN": {},
-        "POS_AN_FLU": {'1': "Sim", '2': "Não", '9': "Ignorado"},
+        
+        # Resultados de Testes Antigênicos (Influenza e outros vírus)
+        "POS_AN_FLU": {'1': "Sim", '2': "Não", '9': "Ignorado"},  # Positivo para Influenza
         "TP_FLU_AN": {'1': "Influenza A", '2': "Influenza B"},
-        "PCR_RESUL": {'1': "Detectável", '2': "Não Detectável", '3': "Inconclusivo", '4': "Não realizado", '5': "Aguardando Resultado", '9': "Ignorado"},
-        "POS_PCRFLU": {'1': "Sim", '2': "Não", '9': "Ignorado"},
-        "TP_FLU_PCR": {'1': "Influenza A", '2': "Influenza B"},
+        "POS_AN_OUT": {'1': "Sim", '2': "Não", '9': "Ignorado"},  # Positivo para outros vírus
+        "AN_SARS2": {'1': "Sim"},  # SARS-CoV-2
+        "AN_VSR": {'1': "Sim"},    # VSR
+        "AN_PARA1": {'1': "Sim"},  # Parainfluenza 1
+        "AN_PARA2": {'1': "Sim"},  # Parainfluenza 2
+        "AN_PARA3": {'1': "Sim"},  # Parainfluenza 3
+        "AN_ADENO": {'1': "Sim"},  # Adenovírus
+        "AN_OUTRO": {'1': "Sim"},  # Outro vírus
+        "DS_AN_OUT": {},           # Outro vírus (descrição)
+        
+        # RT-PCR / Biologia Molecular
+        "PCR_RESUL": {'1': "Detectável", '2': "Não Detectável", '3': "Inconclusivo", 
+                     '4': "Não realizado", '5': "Aguardando Resultado", '9': "Ignorado"},
         "DT_PCR": {},
-        "TP_AM_SOR": {'1': "Teste rápido", '2': "Elisa", '3': "Quimiluminescência", '4': "Outro, especifique"},
-        "SOR_OUT": {},
-        "DT_CO_SOR": {},
-        "RES_IGG": {'1': "Positivo", '2': "Negativo"},
-        "RES_IGM": {'1': "Positivo", '2': "Negativo"},
-        "RES_IGA": {'1': "Positivo", '2': "Negativo"},
-        "DT_RES": {},
+        
+        # Resultados de RT-PCR (Influenza e subtipos)
+        "POS_PCRFLU": {'1': "Sim", '2': "Não", '9': "Ignorado"},  # PCR positivo para Influenza
+        "TP_FLU_PCR": {'1': "Influenza A", '2': "Influenza B"},    # Tipo de Influenza por PCR
+        
+        # Subtipo de Influenza A por PCR
+        "PCR_FLUASU": {'1': "Influenza A(H1N1)pdm09", 
+                      '2': "Influenza A (H3N2)", 
+                      '3': "Influenza A não subtipado",
+                      '4': "Influenza A não subtipável",
+                      '5': "Inconclusivo",
+                      '6': "Outro, especifique"},
+        "FLUASU_OUT": {},  # Outro subtipo Influenza A (descrição)
+        
+        # Linhagem de Influenza B por PCR
+        "PCR_FLUBLI": {'1': "Victoria", 
+                      '2': "Yamagatha", 
+                      '3': "Não realizado",
+                      '4': "Inconclusivo",
+                      '5': "Outro, especifique"},
+        "FLUBLI_OUT": {},  # Outra linhagem Influenza B (descrição)
+        
+        # Outros vírus por PCR
+        "POS_PCROUT": {'1': "Sim", '2': "Não", '9': "Ignorado"},  # PCR positivo para outros vírus
+        "PCR_SARS2": {'1': "Sim"},  # SARS-CoV-2
+        "PCR_VSR": {'1': "Sim"},    # VSR
+        "PCR_PARA1": {'1': "Sim"},  # Parainfluenza 1
+        "PCR_PARA2": {'1': "Sim"},  # Parainfluenza 2
+        "PCR_PARA3": {'1': "Sim"},  # Parainfluenza 3
+        "PCR_PARA4": {'1': "Sim"},  # Parainfluenza 4
+        "PCR_ADENO": {'1': "Sim"},  # Adenovírus
+        "PCR_METAP": {'1': "Sim"},  # Metapneumovírus
+        "PCR_BOCA": {'1': "Sim"},   # Bocavírus
+        "PCR_RINO": {'1': "Sim"},   # Rinovírus
+        "PCR_OUTRO": {'1': "Sim"},  # Outro vírus
+        "DS_PCR_OUT": {},           # Outro vírus (descrição)
+        
+        # Laboratório PCR
+        "LAB_PCR": {},              # Laboratório que realizou o PCR
+        "CO_LAB_PCR": {},           # Código do laboratório
+        
+        # Sorologia para SARS-CoV-2
+        "TP_AM_SOR": {'1': "Sangue/plasma/soro", '2': "Outra, qual?", '9': "Ignorado"},
+        "SOR_OUT": {},              # Outra amostra sorológica (descrição)
+        "DT_CO_SOR": {},            # Data da coleta sorológica
+        "TP_SOR": {'1': "Teste rápido", '2': "Elisa", '3': "Quimiluminescência", '4': "Outro, qual"},
+        "OUT_SOR": {},              # Outro tipo de sorologia (descrição)
+        "RES_IGG": {'1': "Positivo", '2': "Negativo"},  # Resultado IgG
+        "RES_IGM": {'1': "Positivo", '2': "Negativo"},  # Resultado IgM
+        "RES_IGA": {'1': "Positivo", '2': "Negativo"},  # Resultado IgA
+        "DT_RES": {},               # Data do resultado
         
         # Conclusão: Classificação, Critério, Evolução, Datas e Observações
-        "CLASSI_FIN": {'1': "SRAG por influenza", '2': "SRAG por outro vírus respiratório", '3': "SRAG por outro agente etiológico", '4': "SRAG não especificado", '5': "SRAG por covid-19"},
-        "CLASSI_OUT": {},
-        "CRITERIO": {'1': "Laboratorial", '2': "Clínico Epidemiológico", '3': "Clínico", '4': "Clínico Imagem"},
+        "CLASSI_FIN": {'1': "SRAG por influenza", 
+                      '2': "SRAG por outro vírus respiratório", 
+                      '3': "SRAG por outro agente etiológico", 
+                      '4': "SRAG não especificado", 
+                      '5': "SRAG por covid-19"},
+        "CLASSI_OUT": {},           # Outro agente etiológico (descrição)
+        "CRITERIO": {'1': "Laboratorial", 
+                    '2': "Clínico Epidemiológico", 
+                    '3': "Clínico", 
+                    '4': "Clínico Imagem"},
         "EVOLUCAO": {'1': "Cura", '2': "Óbito", '3': "Óbito por outras causas", '9': "Ignorado"},
-        "DT_EVOLUCA": {},
-        "DT_ENCERRA": {},
-        "NU_DO": {},
-        "OBSERVA": {},
-        "NOME_PROF": {},
-        "REG_PROF": {},
-        "DT_DIGITA": {}
+        "DT_EVOLUCA": {},           # Data da evolução (alta ou óbito)
+        "DT_ENCERRA": {},           # Data do encerramento
+        "NU_DO": {},                # Número da declaração de óbito
+        "OBSERVA": {},              # Observações
+        "NOME_PROF": {},            # Nome do profissional responsável
+        "REG_PROF": {},             # Registro profissional
+        "DT_DIGITA": {}             # Data da digitação
     }
     
     # Para cada campo que possui mapeamento, cria uma nova coluna com sufixo _desc
     for campo, mapa in categorias.items():
         if campo in df.columns and mapa:
-            df[campo + '_desc'] = df[campo].astype(str).str.strip().map(mapa)
-            print(f"Mapeamento aplicado para campo: {campo}")
+            try:
+                df[campo + '_desc'] = df[campo].astype(str).str.strip().map(mapa)
+                print(f"Mapeamento aplicado para campo: {campo}")
+            except Exception as e:
+                print(f"ERRO ao mapear campo {campo}: {e}")
+    
+    # Tratamento especial para campos com '1' significando 'Sim' (marcação de checkbox)
+    campos_checkbox = ['AN_SARS2', 'AN_VSR', 'AN_PARA1', 'AN_PARA2', 'AN_PARA3', 'AN_ADENO', 'AN_OUTRO', 
+                     'PCR_SARS2', 'PCR_VSR', 'PCR_PARA1', 'PCR_PARA2', 'PCR_PARA3', 'PCR_PARA4', 
+                     'PCR_ADENO', 'PCR_METAP', 'PCR_BOCA', 'PCR_RINO', 'PCR_OUTRO']
+    
+    for campo in campos_checkbox:
+        if campo in df.columns:
+            try:
+                # Converter para string e limpar
+                valores = df[campo].astype(str).str.strip()
+                # Criar coluna descritiva - onde '1' ou '1.0' significa 'Sim', qualquer outro valor é 'Não'
+                df[campo + '_desc'] = np.where(valores.isin(['1', '1.0']), 'Sim', 'Não')
+                print(f"Mapeamento checkbox aplicado para campo: {campo}")
+            except Exception as e:
+                print(f"ERRO ao mapear campo checkbox {campo}: {e}")
+    
     return df
 
 # Função para converter campos de data e criar campos calculados
@@ -303,6 +448,8 @@ def criar_campos_calculados(df):
         'DOSE_REF', 'DT_RAIOX', 'DT_TOMO', 'DT_COLETA', 'DT_RES_AN',
         'DT_PCR', 'DT_CO_SOR', 'DT_RES', 'DT_DIGITA'
     ]
+    
+    # Primeiro, converter todos os campos de data
     for campo in campos_data:
         if campo in df.columns:
             try:
@@ -311,31 +458,43 @@ def criar_campos_calculados(df):
             except Exception as e:
                 print(f"Erro convertendo campo {campo}: {e}")
     
-    # Exemplo: calcular idade em anos usando DT_NASC e DT_SIN_PRI
+    # Dicionário para armazenar temporariamente os novos campos calculados
+    novos_campos = {}
+    
+    # Calcular idade em anos usando DT_NASC e DT_SIN_PRI
     if 'DT_NASC' in df.columns and 'DT_SIN_PRI' in df.columns:
         try:
-            df['IDADE_ANOS'] = (df['DT_SIN_PRI'] - df['DT_NASC']).dt.days / 365.25
-            df['IDADE_ANOS'] = df['IDADE_ANOS'].round(1)
+            novos_campos['IDADE_ANOS'] = (df['DT_SIN_PRI'] - df['DT_NASC']).dt.days / 365.25
+            novos_campos['IDADE_ANOS'] = novos_campos['IDADE_ANOS'].round(1)
             print("Campo calculado: IDADE_ANOS")
         except Exception as e:
             print(f"Erro ao calcular idade: {e}")
     
-    # Exemplo: tempo de internação (dias) usando DT_INTERNA e DT_EVOLUCA
+    # Calcular tempo de internação (dias) usando DT_INTERNA e DT_EVOLUCA
     if 'DT_INTERNA' in df.columns and 'DT_EVOLUCA' in df.columns:
         try:
-            df['TEMPO_INTERNACAO'] = (df['DT_EVOLUCA'] - df['DT_INTERNA']).dt.days
+            novos_campos['TEMPO_INTERNACAO'] = (df['DT_EVOLUCA'] - df['DT_INTERNA']).dt.days
             print("Campo calculado: TEMPO_INTERNACAO")
         except Exception as e:
             print(f"Erro ao calcular tempo de internação: {e}")
     
-    # Exemplo: tempo de UTI usando DT_ENTUTI e DT_SAIDUTI
+    # Calcular tempo de UTI usando DT_ENTUTI e DT_SAIDUTI
     if 'DT_ENTUTI' in df.columns and 'DT_SAIDUTI' in df.columns:
         try:
-            df['TEMPO_UTI'] = (df['DT_SAIDUTI'] - df['DT_ENTUTI']).dt.days
+            novos_campos['TEMPO_UTI'] = (df['DT_SAIDUTI'] - df['DT_ENTUTI']).dt.days
             print("Campo calculado: TEMPO_UTI")
         except Exception as e:
             print(f"Erro ao calcular tempo de UTI: {e}")
-            
+    
+    # Adicionar todos os novos campos calculados ao DataFrame de uma só vez
+    if novos_campos:
+        # Criar um DataFrame temporário com os novos campos
+        df_novos_campos = pd.DataFrame(novos_campos, index=df.index)
+        
+        # Concatenar o DataFrame original com o DataFrame dos novos campos
+        df = pd.concat([df, df_novos_campos], axis=1)
+        print(f"Adicionados {len(novos_campos)} campos calculados de uma só vez para evitar fragmentação")
+    
     return df
 
 # Função para exportar os dados tratados para CSV (separador ; e codificação UTF-8-SIG)
@@ -371,10 +530,50 @@ def processar_dados_srag(caminho_arquivo, arquivo_saida="dados_srag_tratados.csv
 
 # Bloco principal de execução
 if __name__ == "__main__":
-    # Substitua pelo caminho real do seu arquivo (pode ser DBF, CSV ou Excel)
-    caminho_arquivo = "caminho/para/seu/arquivo/srag.dbf"  # Exemplo: "dados/SRAG.dbf"
-    df_processado = processar_dados_srag(caminho_arquivo)
+    import argparse
+    import os.path
+    
+    # Configurar parser de argumentos para aceitar o caminho do arquivo como entrada
+    parser = argparse.ArgumentParser(description='Processamento de dados SRAG.')
+    parser.add_argument('--arquivo', '-a', type=str, 
+                        default=r'C:\Users\argus\workspace\ProjetoSRAG\SRAG_Unificado.csv',
+                        help='Caminho para o arquivo a ser processado (DBF, CSV ou Excel)')
+    parser.add_argument('--saida', '-s', type=str,
+                        default=r'C:\Users\argus\workspace\ProjetoSRAG\dados_srag_tratados.csv',
+                        help='Caminho para o arquivo de saída (CSV)')
+    
+    args = parser.parse_args()
+    
+    # Verificar se o arquivo existe
+    if not os.path.exists(args.arquivo):
+        print(f"ERRO: O arquivo '{args.arquivo}' não foi encontrado.")
+        print("Possíveis soluções:")
+        print("1. Execute o script de unificação primeiro para criar o arquivo SRAG_Unificado.csv")
+        print("2. Especifique o caminho correto usando o argumento --arquivo")
+        print("   Exemplo: python processar_srag.py --arquivo caminho/para/seu/arquivo.csv")
+        exit(1)
+    
+    print(f"Usando arquivo de entrada: {args.arquivo}")
+    print(f"Arquivo de saída será: {args.saida}")
+    
+    # Processamento do arquivo
+    df_processado = processar_dados_srag(args.arquivo, args.saida)
     
     if df_processado is not None:
         print("\nVisualizando as primeiras linhas dos dados processados:")
         print(df_processado.head())
+        
+        # Resumo dos dados processados
+        print("\nResumo do processamento:")
+        print(f"Total de registros processados: {len(df_processado)}")
+        print(f"Total de colunas após processamento: {len(df_processado.columns)}")
+        
+        # Contar valores únicos em algumas colunas categóricas importantes com descrição
+        colunas_desc = [col for col in df_processado.columns if col.endswith('_desc') and not df_processado[col].isna().all()]
+        if colunas_desc:
+            print("\nDistribuição de algumas categorias importantes:")
+            for col in colunas_desc[:5]:  # Limitar a 5 colunas para não sobrecarregar a saída
+                print(f"\n{col}:")
+                contagem = df_processado[col].value_counts(dropna=False).head(10)
+                for valor, qtd in contagem.items():
+                    print(f"  {valor}: {qtd}")
