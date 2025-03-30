@@ -6,7 +6,7 @@ Processamento completo dos dados SRAG Hospitalizado conforme o dicionário de da
 Este script integra:
   - Carregamento dos dados (suporta DBF, CSV e Excel)
   - Limpeza e padronização dos dados
-  - Mapeamento de campos categóricos (criação de colunas _desc) conforme o dicionário
+  - Mapeamento de campos categóricos conforme o dicionário
   - Conversão de campos de data e criação de campos calculados derivados
   - Exportação dos dados tratados para arquivo CSV
 """
@@ -154,32 +154,32 @@ def standardize_column_names(df):
 
 # Função para aplicar mapeamentos categóricos conforme o dicionário de dados
 def aplicar_categorias_completo(df):
-    # Dicionário de mapeamento completo com base no dicionário SIVEP-Gripe (19/09/2022)
+    # Dicionário de mapeamento atualizado conforme DICIONARIO.txt oficial (19/09/2022)
     categorias = {
         # Dados de Identificação e Notificação
         "NU_NOTIFIC": {},   # Número do registro (numérico/alfanumérico – não mapeamos)
-        "DT_NOTIFIC": {},   # Data de notificação (já presente e será convertida)
+        "DT_NOTIFIC": {},   # Data de notificação (será convertida)
         "SEM_NOT": {},      # Semana epidemiológica calculada (interno)
-        "DT_SIN_PRI": {},
-        "SEM_PRI": {},
-        "SG_UF_NOT": {},
+        "DT_SIN_PRI": {},   # Data dos primeiros sintomas (será convertida)
+        "SEM_PRI": {},      # Semana epidemiológica dos sintomas (interno)
+        "SG_UF_NOT": {},    # UF de notificação (tabela IBGE)
+        "ID_REGIONA": {},   # Região de saúde de notificação (tabela IBGE)
+        "CO_REGIONA": {},   # Código da região de notificação (tabela IBGE)
+        "ID_MUNICIP": {},   # Município de notificação (tabela IBGE)
+        "CO_MUN_NOT": {},   # Código do município de notificação (tabela IBGE)
+        "ID_UNIDADE": {},   # Unidade de saúde (tabela CNES)
 
         # Dados do Paciente 
         "TEM_CPF": {'1': "Sim", '2': "Não"},
         "ESTRANG": {'1': "Sim", '2': "Não"},
-        "NU_CPF": {},       # CPF – não necessita mapeamento
-        "NU_CNS": {},       # CNS
-        "NM_PACIENT": {},
         "CS_SEXO": {'1': "Masculino", '2': "Feminino", '9': "Ignorado"},
-        "DT_NASC": {},
+        "DT_NASC": {},      # Data de nascimento (será convertida)
         "NU_IDADE_N": {},   # Idade informada (numérica)
         "TP_IDADE": {'1': "Dia", '2': "Mês", '3': "Ano"},
+        # COD_IDADE não foi encontrado no dicionário
         "CS_GESTANT": {'1': "1º Trimestre", '2': "2º Trimestre", '3': "3º Trimestre",
                        '4': "Idade Gestacional Ignorada", '5': "Não", '6': "Não se aplica", '9': "Ignorado"},
         "CS_RACA": {'1': "Branca", '2': "Preta", '3': "Amarela", '4': "Parda", '5': "Indígena", '9': "Ignorado"},
-        "CS_ETINIA": {},
-        "POV_CT": {'1': "Sim", '2': "Não"},
-        "TP_POV_CT": {},  # Tabela de povos e comunidades tradicionais - será mapeado separadamente se disponível
         "CS_ESCOL_N": {'0': "Sem escolaridade/Analfabeto",
                        '1': "Fundamental 1º ciclo (1ª a 5ª série)",
                        '2': "Fundamental 2º ciclo (6ª a 9ª série)",
@@ -187,236 +187,167 @@ def aplicar_categorias_completo(df):
                        '4': "Superior",
                        '5': "Não se aplica",
                        '9': "Ignorado"},
-        "PAC_COCBO": {},
-        "NM_MAE_PAC": {},
-        "NU_CEP": {},
-        "SG_UF": {},
-        "ID_MN_RESI": {},  # Município de residência
-        "NM_BAIRRO": {},
-        "NM_LOGRADO": {},
-        "NU_NUMERO": {},
-        "NM_COMPLEM": {},
-        "NU_DDD_TEL": {},
-        "NU_TELEFON": {},
-        "CS_ZONA": {'1': "Urbana", '2': "Rural", '3': "Periurbana", '9': "Ignorado"},
-        "ID_PAIS": {},
+        "ID_PAIS": {},      # País de residência (tabela de países)
+        "SG_UF": {},        # UF de residência (tabela IBGE)
+        "ID_RG_RESI": {},   # Região de saúde de residência (tabela IBGE)
+        "CO_RG_RESI": {},   # Código região de residência (tabela IBGE)
+        "ID_MN_RESI": {},   # Município de residência (tabela IBGE)
+        # SURTO_SG não foi encontrado no dicionário
 
         # Dados de Notificação Adicionais e de Contato
-        "NOSOCOMIAL": {'1': "Sim", '2': "Não", '9': "Ignorado"},
-        "AVE_SUINO": {'1': "Sim", '2': "Não", '9': "Ignorado"},
-        "OUT_ANIM": {},
+        "NOSOCOMIAL": {'1': "Sim", '2': "Não", '9': "Ignorado"},  # Caso nosocomial (infecção hospitalar)
+        "AVE_SUINO": {'1': "Sim", '2': "Não", '9': "Ignorado"},   # Contato com aves ou suínos
+        "OUT_ANIM": {},     # Descrição de outro animal (se aplicável)
 
-        # Sinais e Sintomas
+        # Sinais e Sintomas (todos usam o mesmo mapeamento)
         "FEBRE": {'1': "Sim", '2': "Não", '9': "Ignorado"},
         "TOSSE": {'1': "Sim", '2': "Não", '9': "Ignorado"},
-        "GARGANTA": {'1': "Sim", '2': "Não", '9': "Ignorado"},
-        "DISPNEIA": {'1': "Sim", '2': "Não", '9': "Ignorado"},
-        "DESC_RESP": {'1': "Sim", '2': "Não", '9': "Ignorado"},
-        "SATURACAO": {'1': "Sim", '2': "Não", '9': "Ignorado"},
+        "GARGANTA": {'1': "Sim", '2': "Não", '9': "Ignorado"},    # Dor de garganta
+        "DISPNEIA": {'1': "Sim", '2': "Não", '9': "Ignorado"},    # Dificuldade para respirar
+        "DESC_RESP": {'1': "Sim", '2': "Não", '9': "Ignorado"},   # Desconforto respiratório
+        "SATURACAO": {'1': "Sim", '2': "Não", '9': "Ignorado"},   # Saturação O2 < 95%
         "DIARREIA": {'1': "Sim", '2': "Não", '9': "Ignorado"},
         "VOMITO": {'1': "Sim", '2': "Não", '9': "Ignorado"},
-        "DOR_ABD": {'1': "Sim", '2': "Não", '9': "Ignorado"},
+        "DOR_ABD": {'1': "Sim", '2': "Não", '9': "Ignorado"},     # Dor abdominal
         "FADIGA": {'1': "Sim", '2': "Não", '9': "Ignorado"},
-        "PERD_OLFT": {'1': "Sim", '2': "Não", '9': "Ignorado"},
-        "PERD_PALA": {'1': "Sim", '2': "Não", '9': "Ignorado"},
-        "OUTRO_SIN": {'1': "Sim", '2': "Não", '9': "Ignorado"},
-        "OUTRO_DES": {},
+        "PERD_OLFT": {'1': "Sim", '2': "Não", '9': "Ignorado"},   # Perda do olfato
+        "PERD_PALA": {'1': "Sim", '2': "Não", '9': "Ignorado"},   # Perda do paladar
+        "OUTRO_SIN": {'1': "Sim", '2': "Não", '9': "Ignorado"},   # Outros sintomas
+        "OUTRO_DES": {},    # Descrição de outros sintomas
 
-        # Fatores de Risco
-        "FATOR_RISC": {'1': "Sim", '2': "Não", '9': "Ignorado"},
-        "PUERPERA": {'1': "Sim", '2': "Não", '9': "Ignorado"},
-        "CARDIOPATI": {'1': "Sim", '2': "Não", '9': "Ignorado"},
-        "HEMATOLOGI": {'1': "Sim", '2': "Não", '9': "Ignorado"},
-        "SIND_DOWN": {'1': "Sim", '2': "Não", '9': "Ignorado"},
-        "HEPATICA": {'1': "Sim", '2': "Não", '9': "Ignorado"},
+        # Fatores de Risco (todos usam o mesmo mapeamento)
+        "FATOR_RISC": {'1': "Sim", '2': "Não", '9': "Ignorado"},  # Tem fator de risco
+        "PUERPERA": {'1': "Sim", '2': "Não", '9': "Ignorado"},    # Puérpera (até 45 dias após parto)
+        "CARDIOPATI": {'1': "Sim", '2': "Não", '9': "Ignorado"},  # Doença cardiovascular crônica
+        "HEMATOLOGI": {'1': "Sim", '2': "Não", '9': "Ignorado"},  # Doença hematológica crônica
+        "SIND_DOWN": {'1': "Sim", '2': "Não", '9': "Ignorado"},   # Síndrome de Down
+        "HEPATICA": {'1': "Sim", '2': "Não", '9': "Ignorado"},    # Doença hepática crônica
         "ASMA": {'1': "Sim", '2': "Não", '9': "Ignorado"},
         "DIABETES": {'1': "Sim", '2': "Não", '9': "Ignorado"},
-        "NEUROLOGIC": {'1': "Sim", '2': "Não", '9': "Ignorado"},
-        "PNEUMOPATI": {'1': "Sim", '2': "Não", '9': "Ignorado"},
-        "IMUNODEPRE": {'1': "Sim", '2': "Não", '9': "Ignorado"},
-        "RENAL": {'1': "Sim", '2': "Não", '9': "Ignorado"},
+        "NEUROLOGIC": {'1': "Sim", '2': "Não", '9': "Ignorado"},  # Doença neurológica crônica
+        "PNEUMOPATI": {'1': "Sim", '2': "Não", '9': "Ignorado"},  # Pneumopatia crônica
+        "IMUNODEPRE": {'1': "Sim", '2': "Não", '9': "Ignorado"},  # Imunodeficiência/Imunodepressão
+        "RENAL": {'1': "Sim", '2': "Não", '9': "Ignorado"},       # Doença renal crônica
         "OBESIDADE": {'1': "Sim", '2': "Não", '9': "Ignorado"},
-        "OBES_IMC": {},
-        "OUT_MORBI": {'1': "Sim", '2': "Não", '9': "Ignorado"},  # Outros fatores de risco
-        "MORB_DESC": {},  # Descrição de outros fatores de risco
+        "OBES_IMC": {},     # Valor do IMC (numérico)
+        "OUT_MORBI": {'1': "Sim", '2': "Não", '9': "Ignorado"},   # Outros fatores de risco
+        "MORB_DESC": {},    # Descrição de outros fatores de risco
 
-        # Vacinação contra COVID-19
-        "VACINA_COV": {'1': "Sim", '2': "Não", '9': "Ignorado"},
-        "DOSE_1_COV": {},  # Data da 1ª dose (será convertida)
-        "DOSE_2_COV": {},  # Data da 2ª dose (será convertida)
-        "DOSE_REF": {},    # Data da dose de reforço (será convertida)
-        "DOSE_2REF": {},   # Data da 2ª dose de reforço
-        "FAB_COV1": {},    # Fabricante da 1ª dose
-        "FAB_COV2": {},    # Fabricante da 2ª dose
-        "FAB_COVRF": {},   # Fabricante da dose de reforço
-        "FAB_COVRF2": {},  # Fabricante da 2ª dose de reforço
-        "LOTE_1_COV": {},  # Lote da 1ª dose
-        "LOTE_2_COV": {},  # Lote da 2ª dose
-        "LOTE_REF": {},    # Lote da dose de reforço
-        "LOTE_REF2": {},   # Lote da 2ª dose de reforço
-        "FNT_IN_COV": {'1': "Manual", '2': "Integração"},  # Fonte dos dados de vacinação
+        # Vacinação contra Gripe e COVID-19
+        "VACINA": {'1': "Sim", '2': "Não", '9': "Ignorado"},      # Recebeu vacina contra gripe
+        "DT_UT_DOSE": {},   # Data da última dose de vacina (será convertida)
+        "VACINA_COV": {'1': "Sim", '2': "Não", '9': "Ignorado"},  # Recebeu vacina COVID-19
+        "DOSE_1_COV": {},   # Data da 1ª dose COVID-19 (será convertida)
+        "DOSE_2_COV": {},   # Data da 2ª dose COVID-19 (será convertida)
+        "DOSE_REF": {},     # Data da dose reforço COVID-19 (será convertida)
+        "FAB_COV_1": {},    # Fabricante da 1ª dose COVID-19
+        "FAB_COV_2": {},    # Fabricante da 2ª dose COVID-19
+        "FAB_COVREF": {},   # Fabricante da dose reforço COVID-19
+        "LAB_PR_COV": {},   # Lab.produtor da vacina - não há mapeamento no dicionário
 
-        # Vacinação contra Gripe
-        "VACINA": {'1': "Sim", '2': "Não", '9': "Ignorado"},  # Recebeu vacina contra gripe
-        "DT_UT_DOSE": {},  # Data da última dose
-        "MAE_VAC": {'1': "Sim", '2': "Não", '9': "Ignorado"},  # Mãe vacinada (para < 6 meses)
-        "DT_VAC_MAE": {},  # Data da vacinação da mãe
-        "M_AMAMENTA": {'1': "Sim", '2': "Não", '9': "Ignorado"},  # Mãe amamenta (para < 6 meses)
-        "DT_DOSEUNI": {},  # Data dose única (6m-8a)
-        "DT_1_DOSE": {},   # Data 1ª dose (6m-8a)
-        "DT_2_DOSE": {},   # Data 2ª dose (6m-8a)
-
-        # Tratamento - Antiviral e outros
-        "ANTIVIRAL": {'1': "Sim", '2': "Não", '9': "Ignorado"},
+        # Tratamento - Antiviral
+        "ANTIVIRAL": {'1': "Sim", '2': "Não", '9': "Ignorado"},   # Usou antiviral para gripe
         "TP_ANTIVIR": {'1': "Oseltamivir", '2': "Zanamivir", '3': "Outro"},
-        "OUT_ANTIV": {},   # Outro antiviral (descrição)
-        "DT_ANTIVIR": {},  # Data início do tratamento com antiviral
-        
-        # Tratamento COVID-19
-        "TRAT_COV": {'1': "Sim", '2': "Não", '9': "Ignorado"},  # Recebeu tratamento para COVID-19
-        "TIPO_TRAT": {'1': "Nirmatrevir/ritonavir (Paxlovid)",
-                      '2': "Molnupiravir (Lagevrio)",
-                      '3': "Baricitinibe (Olumiant)",
-                      '4': "Outro, especifique"},
-        "OUT_TRAT": {},    # Outro tratamento COVID-19 (descrição)
-        "DT_TRT_COV": {},  # Data início do tratamento COVID-19
-        
-        # Internação, UTI e exames radiológicos
-        "HOSPITAL": {'1': "Sim", '2': "Não", '9': "Ignorado"},
-        "DT_INTERNA": {},
-        "SG_UF_INTE": {},
-        "ID_RG_INTE": {},
-        "ID_MN_INTE": {},
-        "ID_UN_INTE": {},
-        "UTI": {'1': "Sim", '2': "Não", '9': "Ignorado"},
-        "DT_ENTUTI": {},
-        "DT_SAIDUTI": {},
+
+        # Internação e UTI
+        "DT_INTERNA": {},   # Data da internação (será convertida)
+        "SG_UF_INTE": {},   # UF de internação (tabela IBGE)
+        "ID_RG_INTE": {},   # Região de saúde de internação (tabela IBGE)
+        "CO_RG_INTE": {},   # Código da região de internação (tabela IBGE)
+        "ID_MN_INTE": {},   # Município de internação (tabela IBGE)
+        "CO_MU_INTE": {},   # Código do município de internação (tabela IBGE)
+        "UTI": {'1': "Sim", '2': "Não", '9': "Ignorado"},         # Internado em UTI
+        "DT_ENTUTI": {},    # Data de entrada na UTI (será convertida)
+        "DT_SAIDUTI": {},   # Data de saída da UTI (será convertida)
         "SUPORT_VEN": {'1': "Sim, invasivo", '2': "Sim, não invasivo", '3': "Não", '9': "Ignorado"},
+
+        # Exames radiológicos
         "RAIOX_RES": {'1': "Normal", '2': "Infiltrado intersticial", '3': "Consolidação",
                       '4': "Misto", '5': "Outro", '6': "Não realizado", '9': "Ignorado"},
-        "RAIOX_OUT": {},
-        "DT_RAIOX": {},
+        "RAIOX_OUT": {},    # Descrição de outro resultado de RX
+        "DT_RAIOX": {},     # Data do RX (será convertida)
         "TOMO_RES": {'1': "Típico COVID-19", '2': "Indeterminado COVID-19",
                      '3': "Atípico COVID-19", '4': "Negativo para Pneumonia",
                      '5': "Outro", '6': "Não realizado", '9': "Ignorado"},
-        "TOMO_OUT": {},
-        "DT_TOMO": {},
-        
-        # Teste Diagnóstico – Amostras e Coleta
-        "AMOSTRA": {'1': "Sim", '2': "Não", '9': "Ignorado"},
-        "DT_COLETA": {},
+        "TOMO_OUT": {},     # Descrição de outro resultado de tomografia
+        "DT_TOMO": {},      # Data da tomografia (será convertida)
+
+        # Teste Diagnóstico - Amostra e Coleta
+        "AMOSTRA": {'1': "Sim", '2': "Não", '9': "Ignorado"},     # Coletou amostra
+        "DT_COLETA": {},    # Data da coleta (será convertida)
         "TP_AMOSTRA": {'1': "Secreção de Nasoorofaringe",
                        '2': "Lavado Broco-alveolar",
                        '3': "Tecido post-mortem",
                        '4': "Outra, qual?",
                        '5': "LCR",
                        '9': "Ignorado"},
-        "OUT_AMOST": {},
-        "REQUI_GAL": {},
-        
+        "OUT_AMOST": {},    # Descrição de outro tipo de amostra
+
         # Teste Antigênico
         "TP_TES_AN": {'1': "Imunofluorescência (IF)", '2': "Teste rápido antigênico"},
-        "DT_RES_AN": {},
+        "DT_RES_AN": {},    # Data do resultado do teste antigênico (será convertida)
         "RES_AN": {'1': "Positivo", '2': "Negativo", '3': "Inconclusivo", 
-                  '4': "Não realizado", '5': "Aguardando resultado", '9': "Ignorado"},
-        "LAB_AN": {},
-        "CO_LAB_AN": {},
-        
-        # Resultados de Testes Antigênicos (Influenza e outros vírus)
+                   '4': "Não realizado", '5': "Aguardando resultado", '9': "Ignorado"},
         "POS_AN_FLU": {'1': "Sim", '2': "Não", '9': "Ignorado"},  # Positivo para Influenza
-        "TP_FLU_AN": {'1': "Influenza A", '2': "Influenza B"},
+        "TP_FLU_AN": {'1': "Influenza A", '2': "Influenza B"},    # Tipo de Influenza
         "POS_AN_OUT": {'1': "Sim", '2': "Não", '9': "Ignorado"},  # Positivo para outros vírus
-        "AN_SARS2": {'1': "Sim"},  # SARS-CoV-2
-        "AN_VSR": {'1': "Sim"},    # VSR
-        "AN_PARA1": {'1': "Sim"},  # Parainfluenza 1
-        "AN_PARA2": {'1': "Sim"},  # Parainfluenza 2
-        "AN_PARA3": {'1': "Sim"},  # Parainfluenza 3
-        "AN_ADENO": {'1': "Sim"},  # Adenovírus
-        "AN_OUTRO": {'1': "Sim"},  # Outro vírus
-        "DS_AN_OUT": {},           # Outro vírus (descrição)
-        
-        # RT-PCR / Biologia Molecular
+        "DS_AN_OUT": {},    # Descrição de outro vírus no teste antigênico
+
+        # Teste molecular (RT-PCR)
         "PCR_RESUL": {'1': "Detectável", '2': "Não Detectável", '3': "Inconclusivo", 
                      '4': "Não realizado", '5': "Aguardando Resultado", '9': "Ignorado"},
-        "DT_PCR": {},
-        
-        # Resultados de RT-PCR (Influenza e subtipos)
+        "DT_PCR": {},       # Data do resultado do PCR (será convertida)
         "POS_PCRFLU": {'1': "Sim", '2': "Não", '9': "Ignorado"},  # PCR positivo para Influenza
-        "TP_FLU_PCR": {'1': "Influenza A", '2': "Influenza B"},    # Tipo de Influenza por PCR
-        
-        # Subtipo de Influenza A por PCR
+        "TP_FLU_PCR": {'1': "Influenza A", '2': "Influenza B"},   # Tipo de Influenza por PCR
         "PCR_FLUASU": {'1': "Influenza A(H1N1)pdm09", 
                       '2': "Influenza A (H3N2)", 
                       '3': "Influenza A não subtipado",
                       '4': "Influenza A não subtipável",
                       '5': "Inconclusivo",
                       '6': "Outro, especifique"},
-        "FLUASU_OUT": {},  # Outro subtipo Influenza A (descrição)
-        
-        # Linhagem de Influenza B por PCR
-        "PCR_FLUBLI": {'1': "Victoria", 
-                      '2': "Yamagatha", 
-                      '3': "Não realizado",
-                      '4': "Inconclusivo",
-                      '5': "Outro, especifique"},
-        "FLUBLI_OUT": {},  # Outra linhagem Influenza B (descrição)
-        
-        # Outros vírus por PCR
-        "POS_PCROUT": {'1': "Sim", '2': "Não", '9': "Ignorado"},  # PCR positivo para outros vírus
-        "PCR_SARS2": {'1': "Sim"},  # SARS-CoV-2
-        "PCR_VSR": {'1': "Sim"},    # VSR
-        "PCR_PARA1": {'1': "Sim"},  # Parainfluenza 1
-        "PCR_PARA2": {'1': "Sim"},  # Parainfluenza 2
-        "PCR_PARA3": {'1': "Sim"},  # Parainfluenza 3
-        "PCR_PARA4": {'1': "Sim"},  # Parainfluenza 4
-        "PCR_ADENO": {'1': "Sim"},  # Adenovírus
-        "PCR_METAP": {'1': "Sim"},  # Metapneumovírus
-        "PCR_BOCA": {'1': "Sim"},   # Bocavírus
-        "PCR_RINO": {'1': "Sim"},   # Rinovírus
-        "PCR_OUTRO": {'1': "Sim"},  # Outro vírus
-        "DS_PCR_OUT": {},           # Outro vírus (descrição)
-        
-        # Laboratório PCR
-        "LAB_PCR": {},              # Laboratório que realizou o PCR
-        "CO_LAB_PCR": {},           # Código do laboratório
-        
-        # Sorologia para SARS-CoV-2
-        "TP_AM_SOR": {'1': "Sangue/plasma/soro", '2': "Outra, qual?", '9': "Ignorado"},
-        "SOR_OUT": {},              # Outra amostra sorológica (descrição)
-        "DT_CO_SOR": {},            # Data da coleta sorológica
-        "TP_SOR": {'1': "Teste rápido", '2': "Elisa", '3': "Quimiluminescência", '4': "Outro, qual"},
-        "OUT_SOR": {},              # Outro tipo de sorologia (descrição)
-        "RES_IGG": {'1': "Positivo", '2': "Negativo"},  # Resultado IgG
-        "RES_IGM": {'1': "Positivo", '2': "Negativo"},  # Resultado IgM
-        "RES_IGA": {'1': "Positivo", '2': "Negativo"},  # Resultado IgA
-        "DT_RES": {},               # Data do resultado
-        
-        # Conclusão: Classificação, Critério, Evolução, Datas e Observações
+        "FLUASU_OUT": {},   # Descrição de outro subtipo de Influenza A
+
+        # Resultados virais - campos checkbox
+        "AN_SARS2": {'1': "Sim"},  # SARS-CoV-2 por teste antigênico
+        "AN_VSR": {'1': "Sim"},    # VSR por teste antigênico
+
+        # Conclusão e evolução do caso
         "CLASSI_FIN": {'1': "SRAG por influenza", 
                       '2': "SRAG por outro vírus respiratório", 
                       '3': "SRAG por outro agente etiológico", 
                       '4': "SRAG não especificado", 
                       '5': "SRAG por covid-19"},
-        "CLASSI_OUT": {},           # Outro agente etiológico (descrição)
+        "CLASSI_OUT": {},   # Descrição de outro agente etiológico
         "CRITERIO": {'1': "Laboratorial", 
                     '2': "Clínico Epidemiológico", 
                     '3': "Clínico", 
                     '4': "Clínico Imagem"},
         "EVOLUCAO": {'1': "Cura", '2': "Óbito", '3': "Óbito por outras causas", '9': "Ignorado"},
-        "DT_EVOLUCA": {},           # Data da evolução (alta ou óbito)
-        "DT_ENCERRA": {},           # Data do encerramento
-        "NU_DO": {},                # Número da declaração de óbito
-        "OBSERVA": {},              # Observações
-        "NOME_PROF": {},            # Nome do profissional responsável
-        "REG_PROF": {},             # Registro profissional
-        "DT_DIGITA": {}             # Data da digitação
+        "DT_EVOLUCA": {},   # Data da evolução (será convertida) 
+        "DT_ENCERRA": {},   # Data do encerramento (será convertida)
+        "DT_DIGITA": {},    # Data da digitação (será convertida)
+        "PAC_DSCBO": {},    # Ocupação do paciente (CBO)
     }
     
-    # Para cada campo que possui mapeamento, cria uma nova coluna com sufixo _desc
+    # Substituir os valores originais diretamente (sem criar novas colunas)
     for campo, mapa in categorias.items():
         if campo in df.columns and mapa:
             try:
-                df[campo + '_desc'] = df[campo].astype(str).str.strip().map(mapa)
+                # Normalizar valores: converter para string e tentar extrair valor inteiro para números decimais
+                serie_valores = df[campo].astype(str).str.strip()
+                
+                # Tentar converter decimais para inteiros (como 1.0 -> 1)
+                serie_valores = serie_valores.apply(lambda x: 
+                    str(int(float(x))) if x.replace('.', '', 1).isdigit() and float(x).is_integer() else x
+                )
+                
+                # Aplicar o mapeamento
+                serie_mapeada = serie_valores.map(mapa)
+                
+                # Manter os valores originais onde o mapeamento retornou NaN
+                mascara_nulos = serie_mapeada.isna()
+                df.loc[~mascara_nulos, campo] = serie_mapeada[~mascara_nulos]
+                
                 print(f"Mapeamento aplicado para campo: {campo}")
             except Exception as e:
                 print(f"ERRO ao mapear campo {campo}: {e}")
@@ -431,8 +362,16 @@ def aplicar_categorias_completo(df):
             try:
                 # Converter para string e limpar
                 valores = df[campo].astype(str).str.strip()
-                # Criar coluna descritiva - onde '1' ou '1.0' significa 'Sim', qualquer outro valor é 'Não'
-                df[campo + '_desc'] = np.where(valores.isin(['1', '1.0']), 'Sim', 'Não')
+                
+                # Verificar se o valor é '1', '1.0', ou outros que representam 1
+                mascara_sim = valores.apply(lambda x: 
+                    x == '1' or x == '1.0' or (x.replace('.', '', 1).isdigit() and float(x) == 1)
+                )
+                
+                # Substituir diretamente usando loc para evitar o warning de downcasting
+                df.loc[mascara_sim, campo] = 'Sim'
+                df.loc[~mascara_sim, campo] = 'Não'
+                
                 print(f"Mapeamento checkbox aplicado para campo: {campo}")
             except Exception as e:
                 print(f"ERRO ao mapear campo checkbox {campo}: {e}")
@@ -568,11 +507,16 @@ if __name__ == "__main__":
         print(f"Total de registros processados: {len(df_processado)}")
         print(f"Total de colunas após processamento: {len(df_processado.columns)}")
         
-        # Contar valores únicos em algumas colunas categóricas importantes com descrição
-        colunas_desc = [col for col in df_processado.columns if col.endswith('_desc') and not df_processado[col].isna().all()]
-        if colunas_desc:
+        # Contar valores únicos em algumas colunas categóricas importantes 
+        colunas_categoricas = [
+            'CS_SEXO', 'CS_GESTANT', 'CS_RACA', 'EVOLUCAO', 
+            'CLASSI_FIN', 'CRITERIO'
+        ]
+        colunas_categoricas = [col for col in colunas_categoricas if col in df_processado.columns]
+        
+        if colunas_categoricas:
             print("\nDistribuição de algumas categorias importantes:")
-            for col in colunas_desc[:5]:  # Limitar a 5 colunas para não sobrecarregar a saída
+            for col in colunas_categoricas[:5]:  # Limitar a 5 colunas
                 print(f"\n{col}:")
                 contagem = df_processado[col].value_counts(dropna=False).head(10)
                 for valor, qtd in contagem.items():

@@ -10,6 +10,46 @@ arquivos_csv = [
     r'C:\Users\argus\workspace\ProjetoSRAG\INFLUD24-24-03-2025.csv'
 ]
 
+# Lista de colunas a manter - conforme especificação
+colunas_para_manter = [
+    'DT_NOTIFIC', 'SEM_NOT', 'DT_SIN_PRI', 'SEM_PRI', 'SG_UF_NOT', 'ID_REGIONA', 
+    'CO_REGIONA', 'ID_MUNICIP', 'CO_MUN_NOT', 'ID_UNIDADE', 'CS_SEXO', 'DT_NASC', 
+    'NU_IDADE_N', 'TP_IDADE', 'COD_IDADE', 'CS_GESTANT', 'CS_RACA', 'CS_ESCOL_N',
+    'ID_PAIS', 'SG_UF', 'ID_RG_RESI', 'CO_RG_RESI', 'ID_MN_RESI', 'SURTO_SG', 
+    'NOSOCOMIAL', 'AVE_SUINO', 'FEBRE', 'TOSSE', 'GARGANTA', 'DISPNEIA', 'DESC_RESP', 
+    'SATURACAO', 'DIARREIA', 'VOMITO', 'OUTRO_SIN', 'OUTRO_DES', 'PUERPERA', 
+    'FATOR_RISC', 'CARDIOPATI', 'HEMATOLOGI', 'SIND_DOWN', 'HEPATICA', 'ASMA', 
+    'DIABETES', 'NEUROLOGIC', 'PNEUMOPATI', 'IMUNODEPRE', 'RENAL', 'OBESIDADE', 
+    'OBES_IMC', 'OUT_MORBI', 'MORB_DESC', 'VACINA', 'DT_UT_DOSE', 'ANTIVIRAL', 
+    'TP_ANTIVIR', 'DT_INTERNA', 'SG_UF_INTE', 'ID_RG_INTE', 'CO_RG_INTE', 
+    'ID_MN_INTE', 'CO_MU_INTE', 'UTI', 'DT_ENTUTI', 'DT_SAIDUTI', 'SUPORT_VEN', 
+    'RAIOX_RES', 'RAIOX_OUT', 'DT_RAIOX', 'AMOSTRA', 'DT_COLETA', 'TP_AMOSTRA', 
+    'OUT_AMOST', 'PCR_RESUL', 'DT_PCR', 'POS_PCRFLU', 'TP_FLU_PCR', 'PCR_FLUASU', 
+    'FLUASU_OUT', 'CLASSI_FIN', 'CLASSI_OUT', 'CRITERIO', 'EVOLUCAO', 'DT_EVOLUCA', 
+    'DT_ENCERRA', 'DT_DIGITA', 'PAC_DSCBO', 'DOR_ABD', 'FADIGA', 'PERD_OLFT', 
+    'PERD_PALA', 'TOMO_RES', 'TOMO_OUT', 'DT_TOMO', 'DS_AN_OUT', 'TP_TES_AN', 
+    'DT_RES_AN', 'RES_AN', 'POS_AN_FLU', 'TP_FLU_AN', 'POS_AN_OUT', 'AN_SARS2', 
+    'AN_VSR', 'ESTRANG', 'VACINA_COV', 'DOSE_1_COV', 'DOSE_2_COV', 'DOSE_REF', 
+    'FAB_COV_1', 'FAB_COV_2', 'FAB_COVREF', 'LAB_PR_COV'
+]
+
+# Função para filtrar colunas que existem no DataFrame
+def filtrar_colunas_existentes(df, colunas_desejadas):
+    """
+    Filtra o DataFrame para manter apenas as colunas desejadas que existem nele.
+    """
+    # Identificar quais colunas desejadas realmente existem no DataFrame
+    colunas_existentes = [col for col in colunas_desejadas if col in df.columns]
+    
+    # Colunas desejadas que não existem no DataFrame
+    colunas_ausentes = [col for col in colunas_desejadas if col not in df.columns]
+    if colunas_ausentes:
+        print(f"  Aviso: {len(colunas_ausentes)} colunas solicitadas não existem neste DataFrame:")
+        print(f"  {', '.join(colunas_ausentes[:10])}{'...' if len(colunas_ausentes) > 10 else ''}")
+    
+    # Retornar DataFrame apenas com as colunas existentes
+    return df[colunas_existentes]
+
 # Função melhorada para carregar arquivos CSV com tratamento robusto de erros
 def carregar_csv_robusto(arquivo, tentativas=4):
     """
@@ -42,7 +82,13 @@ def carregar_csv_robusto(arquivo, tentativas=4):
             print(f"  Tentativa {i}: {config}")
             df = pd.read_csv(arquivo, **config)
             print(f"  ✓ Sucesso! Registros: {len(df)}, Colunas: {len(df.columns)}")
-            return df
+            
+            # Filtrar colunas antes de retornar
+            print(f"  Filtrando colunas para manter apenas as solicitadas...")
+            df_filtrado = filtrar_colunas_existentes(df, colunas_para_manter)
+            print(f"  ✓ Dataset reduzido de {len(df.columns)} para {len(df_filtrado.columns)} colunas")
+            
+            return df_filtrado
         except Exception as e:
             print(f"  ✗ Falha: {str(e)[:150]}...")  # Limitar tamanho da mensagem de erro
     
@@ -90,11 +136,12 @@ else:
             print(f"DataFrame {i+1}: {len(df.columns)} colunas")
         
         # Verificar colunas comuns (útil para diagnóstico)
-        if len(dataframes) > 1:
+        if len(dataframes) > 1:  # Fixed: Added missing parentheses
             colunas_comuns = set(dataframes[0].columns)
             for df in dataframes[1:]:
                 colunas_comuns = colunas_comuns.intersection(set(df.columns))
             print(f"Total de colunas comuns a todos os arquivos: {len(colunas_comuns)}")
+            print(f"Colunas comuns: {', '.join(sorted(list(colunas_comuns))[:10])}...")
         
         # Concatenar todos os DataFrames em um único DataFrame
         df_unificado = pd.concat(dataframes, ignore_index=True)
