@@ -329,52 +329,124 @@ def aplicar_categorias_completo(df):
         "PAC_DSCBO": {},    # Ocupação do paciente (CBO)
     }
     
-    # Substituir os valores originais diretamente (sem criar novas colunas)
+    # Construir lista de valores textuais mapeados para todas as categorias 
+    todos_valores_texto = set()
+    for campo, mapa in categorias.items():
+        if mapa:  # Se há um mapeamento para este campo
+            todos_valores_texto.update([str(v).upper() for v in mapa.values()])
+    
+    # Lista para fins de diagnóstico
+    campos_ja_mapeados = []
+    campos_mapeados_agora = []
+    campos_nao_mapeados = []
+    
+    # Processar cada campo categórico
     for campo, mapa in categorias.items():
         if campo in df.columns and mapa:
             try:
-                # Normalizar valores: converter para string e tentar extrair valor inteiro para números decimais
-                serie_valores = df[campo].astype(str).str.strip()
+                # CORREÇÃO: Converter para tipo objeto primeiro para evitar problemas de tipo
+                df[campo] = df[campo].astype(object)
                 
-                # Tentar converter decimais para inteiros (como 1.0 -> 1)
-                serie_valores = serie_valores.apply(lambda x: 
-                    str(int(float(x))) if x.replace('.', '', 1).isdigit() and float(x).is_integer() else x
-                )
+                # Obter valores únicos (não nulos) como strings normalizadas
+                valores_unicos = df[campo].dropna().astype(str).str.strip().str.upper().unique()
                 
-                # Aplicar o mapeamento
-                serie_mapeada = serie_valores.map(mapa)
+                # Verificar se já contém valores textuais mapeados
+                valores_texto = [v for v in valores_unicos if v in todos_valores_texto]
+                valores_originais = [v for v in valores_unicos if v not in todos_valores_texto]
                 
-                # Manter os valores originais onde o mapeamento retornou NaN
-                mascara_nulos = serie_mapeada.isna()
-                df.loc[~mascara_nulos, campo] = serie_mapeada[~mascara_nulos]
+                # Pular se já totalmente mapeado
+                if valores_texto and not valores_originais:
+                    campos_ja_mapeados.append(campo)
+                    print(f"Campo {campo} já contém valores mapeados: {', '.join(valores_texto[:3])}...")
+                    continue
                 
-                print(f"Mapeamento aplicado para campo: {campo}")
+                # Mapear códigos para descrições
+                print(f"Mapeando campo {campo}...")
+                mapeados = 0
+                
+                for codigo, descricao in mapa.items():
+                    try:
+                        # Criar máscaras para códigos exatos e decimais
+                        mascara = (
+                            df[campo].astype(str).str.strip() == str(codigo).strip()
+                        ) | (
+                            df[campo].apply(
+                                lambda x: str(x).replace('.0', '') == str(codigo).strip() 
+                                if pd.notnull(x) else False
+                            )
+                        )
+                        
+                        if mascara.any():
+                            df.loc[mascara, campo] = descricao
+                            mapeados += mascara.sum()
+                            
+                    except Exception as e:
+                        print(f"   Erro no código {codigo} ({campo}): {str(e)}")
+                
+                # Registrar resultados
+                if mapeados > 0:
+                    campos_mapeados_agora.append(f"{campo} ({mapeados})")
+                else:
+                    campos_nao_mapeados.append(campo)
+                    
             except Exception as e:
-                print(f"ERRO ao mapear campo {campo}: {e}")
+                print(f"ERRO processando {campo}: {str(e)}")
     
-    # Tratamento especial para campos com '1' significando 'Sim' (marcação de checkbox)
+    print("\nResumo do mapeamento de categorias:")
+    print(f"Campos já mapeados (pulados): {len(campos_ja_mapeados)}")
+    if campos_ja_mapeados:
+        print(f"  {', '.join(campos_ja_mapeados[:10])}{'...' if len(campos_ja_mapeados) > 10 else ''}")
+    
+    print(f"Campos mapeados neste processamento: {len(campos_mapeados_agora)}")
+    if campos_mapeados_agora:
+        print(f"  {', '.join(campos_mapeados_agora[:10])}{'...' if len(campos_mapeados_agora) > 10 else ''}")
+    
+    print(f"Campos que não precisaram mapeamento: {len(campos_nao_mapeados)}")
+    
+    # Tratamento especial para campos checkbox
     campos_checkbox = ['AN_SARS2', 'AN_VSR', 'AN_PARA1', 'AN_PARA2', 'AN_PARA3', 'AN_ADENO', 'AN_OUTRO', 
-                     'PCR_SARS2', 'PCR_VSR', 'PCR_PARA1', 'PCR_PARA2', 'PCR_PARA3', 'PCR_PARA4', 
-                     'PCR_ADENO', 'PCR_METAP', 'PCR_BOCA', 'PCR_RINO', 'PCR_OUTRO']
+                       'PCR_SARS2', 'PCR_VSR', 'PCR_PARA1', 'PCR_PARA2', 'PCR_PARA3', 'PCR_PARA4', 
+                       'PCR_ADENO', 'PCR_METAP', 'PCR_BOCA', 'PCR_RINO', 'PCR_OUTRO']
+    
+    # Processar os checkboxes
+    campos_checkbox_ja_mapeados = []
+    campos_checkbox_mapeados = []
     
     for campo in campos_checkbox:
         if campo in df.columns:
             try:
-                # Converter para string e limpar
-                valores = df[campo].astype(str).str.strip()
+                # Converter para objeto primeiro
+                df[campo] = df[campo].astype(object)
                 
-                # Verificar se o valor é '1', '1.0', ou outros que representam 1
-                mascara_sim = valores.apply(lambda x: 
-                    x == '1' or x == '1.0' or (x.replace('.', '', 1).isdigit() and float(x) == 1)
+                # Verificar se já tem "SIM" ou "NÃO"
+                valores = set(df[campo].dropna().astype(str).str.upper().unique())
+                if "SIM" in valores or "NÃO" in valores:
+                    campos_checkbox_ja_mapeados.append(campo)
+                    print(f"Campo checkbox {campo} já contém valores mapeados")
+                    continue
+                
+                # Mapear valores 1/1.0 para "Sim" e outros para "Não"
+                print(f"Mapeando campo checkbox {campo}...")
+                
+                # Criar máscara simplificada para valores que representam "1"
+                mascara_sim = df[campo].apply(
+                    lambda x: str(x).strip() == '1' or str(x).strip() == '1.0' 
+                    if pd.notnull(x) else False
                 )
                 
-                # Substituir diretamente usando loc para evitar o warning de downcasting
-                df.loc[mascara_sim, campo] = 'Sim'
-                df.loc[~mascara_sim, campo] = 'Não'
+                # Aplicar mapeamento usando loc
+                if mascara_sim.any():
+                    df.loc[mascara_sim, campo] = "Sim"
+                    df.loc[~mascara_sim & df[campo].notna(), campo] = "Não"
+                    campos_checkbox_mapeados.append(campo)
                 
-                print(f"Mapeamento checkbox aplicado para campo: {campo}")
             except Exception as e:
-                print(f"ERRO ao mapear campo checkbox {campo}: {e}")
+                print(f"ERRO ao processar campo checkbox {campo}: {e}")
+    
+    print(f"\nCampos checkbox já mapeados: {len(campos_checkbox_ja_mapeados)}")
+    print(f"Campos checkbox mapeados neste processamento: {len(campos_checkbox_mapeados)}")
+    if campos_checkbox_mapeados:
+        print(f"  {', '.join(campos_checkbox_mapeados)}")
     
     return df
 
@@ -516,8 +588,9 @@ if __name__ == "__main__":
         
         if colunas_categoricas:
             print("\nDistribuição de algumas categorias importantes:")
-            for col in colunas_categoricas[:5]:  # Limitar a 5 colunas
+            for col in colunas_categoricas:  # Remover o limite de 5 colunas
                 print(f"\n{col}:")
                 contagem = df_processado[col].value_counts(dropna=False).head(10)
                 for valor, qtd in contagem.items():
                     print(f"  {valor}: {qtd}")
+
