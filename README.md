@@ -39,6 +39,137 @@ O ProjetoSRAG surgiu da necessidade de unificar, padronizar e enriquecer os dado
   - Documento oficial do Ministério da Saúde com a descrição detalhada de todos os campos
   - Utilizado como referência para o mapeamento de códigos para descrições
 
+## Processos de Limpeza e Transformação de Dados
+
+### 1. Carregamento e Unificação de Dados
+
+O processo inicia com a unificação de múltiplas bases de dados usando o script `unificacao.py`:
+
+- **Carregamento Robusto**: Implementamos um sistema que tenta múltiplas configurações de encoding (Latin1, UTF-8) e separadores (';', ',') para garantir o carregamento bem-sucedido de arquivos de diferentes origens.
+
+- **Detecção Automática de Formatos**: O script identifica automaticamente se arquivos estão comprimidos e seleciona a melhor estratégia de leitura.
+
+- **Filtragem Inteligente de Colunas**: Apenas as colunas relevantes conforme o dicionário oficial são mantidas, reduzindo o tamanho do dataset.
+
+- **Diagnóstico de Qualidade**: São gerados relatórios detalhados sobre os arquivos carregados, incluindo métricas de completude e consistência.
+
+### 2. Limpeza e Padronização de Dados
+
+A fase de limpeza no script `processar_srag.py` inclui:
+
+- **Remoção de Duplicatas**: Registros duplicados são identificados e removidos.
+
+- **Eliminação de Colunas Vazias**: Colunas com percentual de valores nulos acima de um threshold configurável são automaticamente removidas.
+
+- **Padronização de Texto**: Todas as strings são convertidas para maiúsculas e espaços desnecessários são removidos.
+
+- **Normalização de Nomes de Colunas**: Nomes de colunas são padronizados para corresponder exatamente ao dicionário oficial.
+
+### 3. Mapeamento de Categorias
+
+Este foi o desafio mais complexo do projeto, resolvido através das seguintes estratégias:
+
+- **Conversão Segura de Tipos**: Todos os campos são convertidos para tipo `object` antes do processamento para evitar erros de tipo quando lidando com campos já mapeados.
+
+- **Detecção de Valores Pré-mapeados**: O algoritmo verifica se uma coluna já contém valores descritivos antes de tentar mapear, evitando erros de conversão.
+
+- **Abordagem Multi-estratégia para Códigos Numéricos**:
+  - Correspondência exata de strings
+  - Manipulação especial para números decimais (como 1.0 → 1)
+  - Tratamento diferenciado para campos de checkbox (1 → "Sim")
+
+- **Mapeamento Baseado em Dicionário**: Utilizamos o dicionário oficial SIVEP-Gripe (19/09/2022) para garantir que todos os códigos sejam convertidos para suas descrições corretas, como:
+  - Códigos de sexo (1, 2, 9) → "Masculino", "Feminino", "Ignorado"
+  - Códigos de classificação final (1-5) → Descrições específicas de SRAG
+  - Códigos de evolução (1, 2, 3, 9) → "Cura", "Óbito", "Óbito por outras causas", "Ignorado"
+
+- **Aplicação Seletiva de Mapeamentos**: Utilizamos máscaras booleanas e o método `.loc` para atualizar somente os valores específicos que precisam ser alterados.
+
+### 4. Conversão de Datas e Cálculos Derivados
+
+- **Normalização de Datas**: Campos de data são convertidos para objetos datetime do pandas com tratamento de erros inteligente.
+
+- **Cálculos Derivados Importantes**:
+  - **IDADE_ANOS**: Calculada precisamente a partir da data de nascimento e data dos primeiros sintomas
+  - **TEMPO_INTERNACAO**: Duração da internação em dias
+  - **TEMPO_UTI**: Tempo de permanência em UTI
+
+- **Otimização de Memória**: Todos os novos campos são calculados em um DataFrame temporário e depois concatenados de uma vez para evitar fragmentação de memória.
+
+## Desafios Técnicos e Soluções
+
+### 1. Problema: Tipos Mistos de Dados
+**Desafio**: Algumas colunas já continham valores textuais em vez de códigos, causando erros de conversão durante o mapeamento.
+
+**Solução**: 
+- Implementamos uma fase de detecção prévia que verifica se uma coluna já contém valores de texto mapeados
+- Convertemos todos os campos para o tipo `object` antes de qualquer operação
+- Criamos um conjunto de todos os valores possíveis após mapeamento para comparação rápida
+
+```python
+# Verificar se a coluna já contém valores textuais mapeados
+valores_texto = [v for v in valores_unicos if v in todos_valores_texto]
+valores_originais = [v for v in valores_unicos if v not in todos_valores_texto]
+
+# Pular se já totalmente mapeado
+if valores_texto and not valores_originais:
+    campos_ja_mapeados.append(campo)
+    continue
+```
+
+### 2. Problema: Variações de Representação Numérica
+**Desafio**: Valores decimais como "1.0" precisavam ser tratados como equivalentes a "1".
+
+**Solução**:
+- Utilizamos uma abordagem de duas vias que combina correspondência exata e verificação de equivalência numérica
+- Implementamos um método seguro de manipulação de strings para remover '.0' dos valores
+
+```python
+mascara = (
+    df[campo].astype(str).str.strip() == str(codigo).strip()
+) | (
+    df[campo].apply(
+        lambda x: str(x).replace('.0', '') == str(codigo).strip() 
+        if pd.notnull(x) else False
+    )
+)
+```
+
+### 3. Problema: Carregamento de Arquivos em Diferentes Formatos
+**Desafio**: Os arquivos CSV vinham com diferentes encodings, separadores e estruturas.
+
+**Solução**:
+- Sistema de fallback de múltiplas tentativas para carregamento de CSV
+- Detecção automática de compressão de arquivo
+- Sistema de diagnóstico que mostra as primeiras linhas em caso de falha
+
+```python
+# Sistema sequencial de tentativas com diferentes configurações
+configs = [
+    {'encoding': 'latin1', 'sep': ';', 'low_memory': False},
+    {'encoding': 'latin1', 'sep': ',', 'low_memory': False},
+    {'encoding': 'utf-8', 'sep': ';', 'low_memory': False},
+    {'encoding': 'latin1', 'sep': None, 'engine': 'python', 'low_memory': False}
+]
+```
+
+### 4. Problema: Prevenção de Erros em Processamento em Lote
+**Desafio**: O processamento não podia falhar completamente devido a erros em campos individuais.
+
+**Solução**:
+- Blocos try/except granulares em torno de cada operação importante
+- Reporting detalhado de campos processados, pulados ou com erro
+- Código defensivo que verifica existência de colunas antes de processá-las
+
+### 5. Problema: Otimização para Grandes Volumes de Dados
+**Desafio**: Os datasets completos chegam a milhões de registros, exigindo uso eficiente de memória.
+
+**Solução**:
+- Implementação opcional do PyArrow para carregar arquivos grandes
+- Remoção proativa de colunas desnecessárias
+- Processamento em chunks para arquivos muito grandes
+- Minimização de cópias de DataFrames em memória
+
 ## Fluxo de Trabalho
 
 O projeto foi desenvolvido para seguir um fluxo de trabalho em etapas:
@@ -55,6 +186,16 @@ O projeto foi desenvolvido para seguir um fluxo de trabalho em etapas:
 3. **Análise e Visualização**
    - Utilize o notebook `teste.ipynb` para explorar os dados processados
    - Realiza análises estatísticas e prepara visualizações
+
+## Métricas e Validação dos Resultados
+
+Após o processamento, o script gera relatórios com:
+
+- Total de registros processados
+- Contagem de campos já mapeados, mapeados durante o processamento, e não mapeados
+- Distribuição de valores em colunas-chave como sexo, raça, evolução e classificação final
+
+Estas métricas permitem validar a qualidade do processamento e identificar possíveis anomalias nos dados.
 
 ## Detalhes Técnicos
 
@@ -73,14 +214,6 @@ O projeto foi desenvolvido para seguir um fluxo de trabalho em etapas:
 - **Otimização de Memória**: Implementação que evita fragmentação do DataFrame para grandes volumes de dados
 - **Diagnóstico de Erros**: Feedback detalhado quando ocorrem problemas de carregamento
 - **Remoção Inteligente de Colunas**: Eliminação de colunas totalmente vazias para economizar memória
-
-### Mapeamento de Categorias
-
-Um dos aspectos mais importantes deste projeto é o mapeamento preciso dos códigos numéricos para suas descrições textuais, seguindo rigorosamente o dicionário oficial. Por exemplo:
-
-- Códigos de sexo (1, 2, 9) → "Masculino", "Feminino", "Ignorado"
-- Códigos de evolução (1, 2, 3, 9) → "Cura", "Óbito", "Óbito por outras causas", "Ignorado"
-- Códigos de classificação final (1-5) → Descrições específicas do tipo de SRAG
 
 ## Como Usar
 
@@ -121,6 +254,15 @@ Abra o notebook `teste.ipynb` em um ambiente Jupyter e execute as células para 
 - **Consolidação Temporal**: Unificação de dados de múltiplos anos em uma base coerente
 - **Enriquecimento**: Campos calculados que facilitam análises epidemiológicas
 - **Padronização**: Formato consistente que facilita integrações com outras ferramentas
+
+## Lições Aprendidas
+
+O desenvolvimento deste projeto ofereceu importantes aprendizados sobre processamento de dados epidemiológicos:
+
+1. **Validação Rigorosa**: É essencial verificar a correspondência exata com o dicionário oficial
+2. **Tratamento Defensivo**: Sempre assumir que os dados podem ter inconsistências
+3. **Otimização Progressiva**: Começar com código funcional e otimizar conforme necessário
+4. **Diagnóstico Detalhado**: Implementar sistemas de log que facilitem a depuração
 
 ## Limitações Conhecidas
 
