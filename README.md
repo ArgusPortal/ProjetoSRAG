@@ -2,6 +2,12 @@
 
 Este projeto oferece ferramentas para processamento, limpeza e análise de dados de Síndrome Respiratória Aguda Grave (SRAG) do sistema SIVEP-Gripe do Ministério da Saúde do Brasil.
 
+## Objetivo do Projeto
+
+Este projeto tem como objetivo analisar os dados epidemiológicos relacionados à Síndrome Respiratória Aguda Grave (SRAG) no Brasil, utilizando informações públicas provenientes das notificações realizadas por unidades de saúde. Os dados analisados abrangem características demográficas, clínicas e temporais dos pacientes, permitindo a construção de indicadores que subsidiem estratégias de vigilância e planejamento em saúde pública.
+
+É importante destacar que a qualidade dos resultados obtidos depende diretamente da correta inserção das informações no sistema de notificação. Assim, eventuais inconsistências ou lacunas nos registros podem impactar a interpretação dos achados e a formulação de ações baseadas nos dados. Por isso, na análise de Internações e Perfil Vacinal foram excluídos casos com informações faltantes ou dados discrepantes.
+
 ## Sobre o Projeto
 
 O ProjetoSRAG surgiu da necessidade de unificar, padronizar e enriquecer os dados de vigilância epidemiológica de SRAG (Síndrome Respiratória Aguda Grave) provenientes do SIVEP-Gripe. O objetivo principal é transformar dados brutos com códigos numéricos em informações significativas, seguindo rigorosamente o dicionário de dados oficial.
@@ -13,6 +19,7 @@ O ProjetoSRAG surgiu da necessidade de unificar, padronizar e enriquecer os dado
 - **Interpretação Semântica**: Converte códigos numéricos em descrições textuais conforme o dicionário oficial
 - **Cálculos Derivados**: Gera campos úteis como idade em anos, tempo de internação e tempo em UTI
 - **Tratamento Robusto**: Lida com diferentes formatos de arquivo e codificações com múltiplas estratégias de contingência
+- **Filtragem Avançada**: Remove registros com dados inconsistentes (como tempo de UTI irrealmente alto)
 
 ## Arquivos do Projeto
 
@@ -29,15 +36,117 @@ O ProjetoSRAG surgiu da necessidade de unificar, padronizar e enriquecer os dado
    - Converte datas e calcula campos derivados importantes
    - Remove colunas vazias e padroniza formatos
 
-3. **teste.ipynb**
-   - Notebook Jupyter para exploração e análise dos dados processados
-   - Demonstra como carregar, visualizar e analisar os dados após o processamento
+3. **filtrar_dados_srag.py**
+   - Remove registros com TEMPO_UTI > 160 dias (possíveis erros de digitação)
+   - Exclui registros onde o campo EVOLUCAO está nulo
+   - Gera relatórios detalhados sobre os registros filtrados
+
+4. **formatar_dicionario.py** e **analisar_dicionario_formatado.py**
+   - Ferramentas auxiliares para trabalhar com o dicionário de dados oficial
+   - Corrigem quebras de linha indevidas e melhoram a legibilidade
+   - Analisam a consistência do dicionário com o código de processamento
 
 ### Arquivos de Referência
 
 - **DICIONARIO.txt**
   - Documento oficial do Ministério da Saúde com a descrição detalhada de todos os campos
   - Utilizado como referência para o mapeamento de códigos para descrições
+
+## Análise da Situação Epidemiológica da SRAG no Brasil
+
+O dashboard analisado apresenta um panorama detalhado sobre os casos de Síndrome Respiratória Aguda Grave (SRAG) no Brasil, com foco em internações hospitalares, suporte clínico e adesão à vacinação contra COVID-19. A análise dos dados evidencia padrões epidemiológicos, desigualdades no acesso à saúde e oportunidades para intervenções estratégicas. A seguir, são apresentados os principais achados e suas implicações.
+
+### Internações e Suporte Clínico
+
+#### Internações Hospitalares
+Os dados indicam que a SRAG continua a ser um problema de saúde pública significativo no Brasil. Com um total de 2.171.580 pacientes registrados, 2.138.995 (98,5%) necessitaram de internação hospitalar. Esse número reflete a gravidade da condição e a pressão exercida sobre o sistema de saúde, especialmente em períodos de maior circulação viral.
+
+A alta taxa de internações sugere que a SRAG está frequentemente associada a complicações graves que requerem cuidados hospitalares. Isso reforça a importância de estratégias preventivas, como vacinação em massa e campanhas educativas para reduzir a exposição aos fatores de risco.
+
+#### Uso de UTI
+Entre os pacientes internados, 710.420 (32,7%) necessitaram de cuidados em Unidade de Terapia Intensiva (UTI). A maior parte dos pacientes (65,4%) não precisou de UTI, enquanto 1,9% dos registros não informaram essa variável.
+
+A proporção significativa de internações em UTI demonstra a gravidade dos casos mais críticos e aponta para a necessidade de manter uma infraestrutura robusta de cuidados intensivos. Estratégias como o fortalecimento da rede hospitalar e o treinamento contínuo das equipes médicas são essenciais para lidar com picos epidêmicos.
+
+#### Suporte Ventilatório
+O suporte ventilatório foi amplamente utilizado entre os pacientes:
+
+- 56,2% receberam suporte ventilatório não invasivo
+- 16,8% necessitaram de ventilação invasiva
+- Apenas 23,9% dos pacientes não precisaram dessa intervenção
+
+O uso elevado de ventilação não invasiva pode indicar uma abordagem clínica voltada para evitar complicações associadas à ventilação mecânica invasiva. No entanto, a alta proporção de casos graves que demandaram ventilação invasiva reforça a importância de estratégias preventivas para reduzir o número de hospitalizações severas.
+
+#### Tempo Médio de Internação
+O tempo médio de internação geral foi consistente ao longo do ano, com uma média de 11 dias. Da mesma forma, o tempo médio na UTI também foi de aproximadamente 11 dias. Nos meses finais do ano (novembro e dezembro), observou-se uma leve redução para cerca de 10 dias.
+
+Essa redução pode estar associada à menor gravidade dos casos mais recentes ou à adoção de protocolos clínicos mais eficazes. O monitoramento contínuo do tempo médio de internação é fundamental para avaliar a eficiência do manejo clínico e identificar oportunidades para otimização dos recursos hospitalares.
+
+### Vacinação Contra COVID-19
+
+#### Cobertura Vacinal
+A análise da cobertura vacinal contra COVID-19 revela um padrão preocupante:
+
+- Apenas 34% dos pacientes receberam a primeira dose
+- A adesão à segunda dose foi ainda menor (28%)
+- Apenas 12% completaram o esquema vacinal com a dose de reforço
+
+Esses números indicam uma baixa adesão às doses subsequentes da vacina, o que pode estar associado à diminuição da percepção do risco ao longo do tempo ou à falta de acesso em algumas regiões. Campanhas educativas e estratégias logísticas direcionadas são necessárias para aumentar a adesão vacinal, especialmente entre os grupos mais vulneráveis.
+
+#### Diferenças por Sexo
+As mulheres apresentaram maior adesão à vacinação em todas as doses:
+
+- Primeira dose: 36% (feminino) vs. 31% (masculino)
+- Segunda dose: 30% (feminino) vs. 25% (masculino)
+- Dose de reforço: 13% (feminino) vs. 10% (masculino)
+
+Essas diferenças podem refletir maior conscientização ou acesso aos serviços de saúde entre as mulheres. Estratégias específicas devem ser implementadas para aumentar a adesão vacinal entre os homens, como campanhas direcionadas ou parcerias com ambientes predominantemente masculinos (ex.: locais de trabalho).
+
+#### Diferenças por Raça
+A análise por raça evidencia desigualdades significativas:
+
+- Grupos Amarelo e Branco apresentaram as maiores taxas de vacinação
+- Grupos Pardo e Preto tiveram menores taxas em todas as doses
+
+Essas disparidades sugerem barreiras no acesso à vacinação entre determinados grupos raciais, possivelmente relacionadas a fatores socioeconômicos ou geográficos. Políticas públicas devem priorizar essas populações vulneráveis por meio da ampliação do acesso às vacinas em comunidades periféricas e rurais.
+
+#### Evolução Temporal da Vacinação
+A adesão vacinal atingiu seu pico em 2021:
+
+- Primeira dose: 56%
+- Segunda dose: 33%
+
+Nos anos seguintes, houve uma queda acentuada:
+
+- Em 2025, apenas 41% receberam a primeira dose
+- Apenas 38% completaram a segunda dose
+- Apenas 18% receberam o reforço
+
+Essa queda na adesão ao longo do tempo reflete desafios na manutenção do engajamento populacional com campanhas vacinais prolongadas. Estratégias como comunicação clara sobre os benefícios das doses subsequentes e incentivos diretos podem ajudar a reverter essa tendência.
+
+## Implicações Epidemiológicas
+
+Os dados apresentados no dashboard têm implicações importantes para o planejamento estratégico em saúde pública:
+
+### Fortalecimento da Vigilância Epidemiológica
+- O monitoramento contínuo dos casos graves é essencial para identificar surtos precocemente
+- A integração dos dados hospitalares com sistemas regionais pode melhorar a alocação eficiente dos recursos
+
+### Foco na Prevenção
+- A alta taxa de internações e uso intensivo de UTI reforçam a necessidade de estratégias preventivas robustas
+- Campanhas educativas sobre higiene respiratória e vacinação devem ser ampliadas para reduzir o número de casos graves
+
+### Redução das Desigualdades
+- As disparidades observadas na vacinação por sexo e raça destacam desigualdades no acesso aos serviços de saúde
+- Políticas específicas devem ser implementadas para alcançar populações vulneráveis, incluindo campanhas itinerantes em áreas remotas e periféricas
+
+### Fortalecimento da Rede Hospitalar
+- O uso elevado de suporte ventilatório e o tempo prolongado na UTI demonstram a necessidade contínua de investimentos na infraestrutura hospitalar
+- Treinamento das equipes médicas deve ser priorizado para garantir um manejo eficiente durante períodos críticos
+
+### Aumento da Adesão Vacinal
+- A baixa cobertura vacinal contra COVID-19 é preocupante e exige ações imediatas
+- Estratégias como parcerias comunitárias e incentivos financeiros podem aumentar as taxas de vacinação nas populações menos engajadas
 
 ## Processos de Limpeza e Transformação de Dados
 
@@ -95,6 +204,13 @@ Este foi o desafio mais complexo do projeto, resolvido através das seguintes es
   - **TEMPO_UTI**: Tempo de permanência em UTI
 
 - **Otimização de Memória**: Todos os novos campos são calculados em um DataFrame temporário e depois concatenados de uma vez para evitar fragmentação de memória.
+
+### 5. Filtragem de Dados Problemáticos
+
+Após o processamento inicial, aplicamos filtros para remover registros que possam comprometer a qualidade da análise:
+
+- **Remoção de Valores Extremos**: Excluímos registros com TEMPO_UTI > 160 dias, que provavelmente representam erros de digitação
+- **Eliminação de Registros Incompletos**: Removemos casos onde o campo EVOLUCAO está nulo, garantindo maior confiabilidade em análises de desfecho
 
 ## Desafios Técnicos e Soluções
 
@@ -183,8 +299,11 @@ O projeto foi desenvolvido para seguir um fluxo de trabalho em etapas:
    - Transforma códigos em descrições conforme o dicionário
    - Cria o arquivo `dados_srag_tratados.csv` com os dados processados
 
-3. **Análise e Visualização**
-   - Utilize o notebook `teste.ipynb` para explorar os dados processados
+3. **Filtragem de Registros**
+   - Execute `filtrar_dados_srag.py` para remover registros problemáticos
+   - Cria o arquivo `dados_srag_filtrados.csv` com dados de alta qualidade
+
+4. **Análise e Visualização**
    - Realiza análises estatísticas e prepara visualizações
 
 ## Métricas e Validação dos Resultados
@@ -238,9 +357,16 @@ Exemplo com opções:
 python processar_srag.py --arquivo dados/meu_arquivo.csv --saida resultados/dados_processados.csv
 ```
 
-### Análise no Jupyter Notebook
+### Filtragem de Registros Problemáticos
 
-Abra o notebook `teste.ipynb` em um ambiente Jupyter e execute as células para explorar os dados.
+```bash
+python filtrar_dados_srag.py
+```
+
+Opções disponíveis:
+- `--arquivo` ou `-a`: Caminho para o arquivo a ser filtrado
+- `--saida` ou `-s`: Caminho para o arquivo de saída filtrado
+- `--sobrescrever` ou `-o`: Sobrescreve o arquivo original (cria backup automático)
 
 ## Melhores Práticas e Dicas
 
@@ -276,10 +402,18 @@ Ideias para aprimoramento:
 - Módulos de análise estatística avançada
 - Integração com sistemas de BI e dashboards
 
+## Conclusão
+
+O panorama apresentado evidencia tanto os desafios quanto as oportunidades no enfrentamento da SRAG no Brasil. Embora avanços tenham sido feitos no manejo clínico dos casos graves – como indicado pela redução do tempo médio de internação – ainda há lacunas significativas na prevenção primária, especialmente relacionadas à vacinação contra COVID-19.
+
+As desigualdades observadas entre grupos raciais e sexos reforçam a necessidade urgente de políticas públicas mais inclusivas e equitativas. Além disso, o declínio na adesão vacinal ao longo do tempo destaca a importância da comunicação clara sobre os benefícios contínuos das doses subsequentes.
+
+Por fim, o fortalecimento da vigilância epidemiológica e da infraestrutura hospitalar será essencial para mitigar os impactos futuros da SRAG e outras doenças respiratórias graves no Brasil. Este projeto serve como base para orientar gestores públicos na tomada de decisões estratégicas voltadas à proteção da saúde coletiva no país.
+
 ## Agradecimentos
 
 Este projeto utiliza dados públicos do SIVEP-Gripe (Sistema de Informação de Vigilância Epidemiológica da Gripe) do Ministério da Saúde do Brasil.
 
 ---
 
-Projeto desenvolvido para fins de análise e pesquisa epidemiológica.
+Este projeto foi realizado por Argus Cordeiro Sales Portal como atividade avaliativa do curso de Especialização em Tecnologias Emergentes e Imersivas para Saúde Digital - UFG
