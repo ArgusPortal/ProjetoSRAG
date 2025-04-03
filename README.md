@@ -414,6 +414,7 @@ Por fim, o fortalecimento da vigilância epidemiológica e da infraestrutura hos
 
 Este projeto utiliza dados públicos do SIVEP-Gripe (Sistema de Informação de Vigilância Epidemiológica da Gripe) do Ministério da Saúde do Brasil.
 
+Agradecimento também ao /alisonpezzott pela disponibilização do tema utilizado 
 ---
 
 Este projeto foi realizado por Argus Cordeiro Sales Portal como atividade avaliativa do curso de Especialização em Tecnologias Emergentes e Imersivas para Saúde Digital - UFG
